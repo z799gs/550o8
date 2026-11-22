@@ -267,6 +267,3 @@ setInterval(function () { if (document.activeElement && document.activeElement.t
 
 ]]></Content>
 </Module>
-
-]]></Content>
-</Module>
