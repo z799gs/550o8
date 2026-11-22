@@ -4,270 +4,149 @@
 <Content type="html"><![CDATA[
 
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/z799gs/550o8@c572d0918d334c7e0cd95db122265259d6a7b94a/style.css"/>
+<meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <style>
-    canvas:focus { outline: none; }
-    html, body {
-        padding: 0; margin: 0; overflow: hidden;
-        width: 100%; height: 100%;
-        background-color: #000;
-    }
-    #unity-container { 
-        width: 100%; height: 100%; 
-        position: absolute; top: 0; left: 0; 
-    }
-    #unity-canvas { 
-        width: 100% !important; height: 100% !important; 
-    }
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+#openfl-content{background:#000;width:100%;height:100%}
+#loading{position:absolute;z-index:15;top:60%;left:50%;transform:translate(-50%,0);background:#000;text-align:center}
+#preroll{display:none;pointer-events:none}
 </style>
-</head>
-<body class="dark">
-<div id="unity-container" class="unity-desktop">
-    <canvas id="unity-canvas" tabindex="-1"></canvas>
-</div>
-<div id="loading-cover" style="display:none;">
-    <div id="unity-loading-bar">
-        <div id="unity-progress-bar-empty" style="display: none;">
-            <div id="unity-progress-bar-full"></div>
-        </div>
-        <div class="spinner"></div>
-    </div>
-</div>
-
 <script>
-    const NO_DATA = 'no data';
-
-    var environmentData = NO_DATA;
-    var cloudSaves = NO_DATA;
-    var playerData = NO_DATA;
-    var paymentsData = NO_DATA;
-    var statsSaves = NO_DATA;
-
-    var player = null;
-    var payments = null;
-    var initGame = false;
-    var ygGameInstance = null;
-    var ysdk = null;
-    var isPausedGame = false;
-
-    function LogStyledMessage(message, style) {
-        if (style) {
-            console.log('%c' + message, style);
-        } else {
-            console.log('%c' + message, 'color: #FFDF73; background-color: #454545; padding: 2px 5px; border-radius: 2px;');
-        }
+(function () {
+    function lock(name, value) {
+        try { Object.defineProperty(Function.prototype, name, { configurable: true, get: function () { return value; }, set: function () {} }); } catch (e) {}
     }
+    lock('hostName', 'basketbros.io');
+    lock('hostNameFull', 'basketbros.io');
 
-    function InitGame() {
-        initGame = true;
-        setTimeout(function() {
-            if (ygGameInstance) {
-                ygGameInstance.SendMessage('YG2Instance', 'InitSDKComplete');
-            }
-        }, 500);
-    }
-
-    var fakeEnvData = {
-        "language": "en", 
-        "domain": "default_domain",
-        "deviceType": "desktop",
-        "isMobile": false,
-        "isDesktop": true,
-        "isTablet": false,
-        "isTV": false,
-        "appID": "offline_app",
-        "browserLang": "en",
-        "payload": null,
-        "platform": navigator.platform,
-        "browser": "Chrome"
-    };
-    environmentData = JSON.stringify(fakeEnvData);
-
-    const buildUrl = "https://cdn.jsdelivr.net/gh/z799gs/550o8@6e9dd3cff9f43dccbde8dcb246d76a0ade6a5237/Build";
-    const DATA_CDN = "https://cdn.jsdelivr.net/gh/z799gs/550o8@e1d08f37432f1e0915e9f4ca243c6b54ef848837/Build";
-    const WASM_CDN = "https://cdn.jsdelivr.net/gh/z799gs/550o8@c572d0918d334c7e0cd95db122265259d6a7b94a/Build";
-    const loaderUrl = buildUrl + "/Dune.loader.js";
-    const config = {
-        dataUrl: DATA_CDN + "/Dune.data.br",
-        frameworkUrl: buildUrl + "/Dune.framework.js",
-        streamingAssetsUrl: "StreamingAssets",
-        companyName: "DefaultCompany",
-        productName: "CloneDuneDEV",
-        productVersion: "1.0"
+    var BLOCK = /basketbros\.io|docs\.google\.com|\/pingtest\.php|recordsession|sendfeedback|googletagmanager|google-analytics|firebase/i;
+    var xo = XMLHttpRequest.prototype.open, xs = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (m, u) { this.__blk = BLOCK.test(String(u)); return xo.apply(this, arguments); };
+    XMLHttpRequest.prototype.send = function () {
+        if (!this.__blk) return xs.apply(this, arguments);
+        var x = this;
+        try {
+            Object.defineProperty(x, 'readyState', { value: 4 });
+            Object.defineProperty(x, 'status', { value: 0 });
+            Object.defineProperty(x, 'responseText', { value: '' });
+        } catch (e) {}
+        setTimeout(function () {
+            try { x.onreadystatechange && x.onreadystatechange(); } catch (e) {}
+            try { x.onerror && x.onerror(new Event('error')); } catch (e) {}
+        }, 0);
     };
 
-    const container = document.querySelector("#unity-container");
-    const canvas = document.querySelector("#unity-canvas");
-    const loadingCover = document.querySelector("#loading-cover");
-    const progressBarEmpty = document.querySelector("#unity-progress-bar-empty");
-    const progressBarFull = document.querySelector("#unity-progress-bar-full");
-    const spinner = document.querySelector('.spinner');
-
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        container.className = "unity-mobile";
-    }
-
-    loadingCover.style.background = "url('https://cdn.jsdelivr.net/gh/z799gs/550o8@main/Images/background.png') center / cover";
-    loadingCover.style.display = "";
-
-    function loadAndMergeFiles(files, callback) {
-        var mergedBlob = [];
-        var loadNextFile = function(index) {
-            if (index < files.length) {
-                var file = files[index];
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', WASM_CDN + "/" + file, true);
-                xhr.responseType = 'arraybuffer';
-                xhr.onload = function() {
-                    if (this.status === 200) {
-                        mergedBlob.push(new Uint8Array(this.response));
-                        loadNextFile(index + 1);
-                    } else {
-                        LogStyledMessage("Part failed: " + file);
-                        loadNextFile(index + 1);
-                    }
-                };
-                xhr.send();
-            } else {
-                var blob = new Blob(mergedBlob);
-                callback(blob);
-            }
-        };
-        loadNextFile(0);
-    }
-
-    var wasmParts = [
-        "Dune.wasm.br.part1", "Dune.wasm.br.part2", "Dune.wasm.br.part3",
-        "Dune.wasm.br.part4", "Dune.wasm.br.part5", "Dune.wasm.br.part6"
-    ];
-
-    const script = document.createElement("script");
-    script.src = loaderUrl;
-    script.onload = () => {
-        loadAndMergeFiles(wasmParts, function(blob) {
-            config.codeUrl = URL.createObjectURL(blob);
-
-            createUnityInstance(canvas, config, (progress) => {
-                spinner.style.display = "none";
-                progressBarEmpty.style.display = "";
-                progressBarFull.style.width = (100 * Math.max(progress, 0.05)) + "%";
-            }).then((unityInstance) => {
-                ygGameInstance = unityInstance;
-                loadingCover.style.display = "none";
-                InitFakeYSDK();
-            }).catch((message) => {
-                console.error(message);
-            });
-        });
+    var FakeWS = function () {
+        var w = this;
+        w.readyState = 0; w.binaryType = 'blob'; w.bufferedAmount = 0; w.protocol = ''; w.extensions = '';
+        w.send = function () {}; w.close = function () { w.readyState = 3; };
+        w.addEventListener = function () {}; w.removeEventListener = function () {};
+        setTimeout(function () {
+            w.readyState = 3;
+            try { w.onerror && w.onerror(new Event('error')); } catch (e) {}
+            try { w.onclose && w.onclose({ code: 1006, reason: '', wasClean: false }); } catch (e) {}
+        }, 50);
     };
-    document.body.appendChild(script);
+    FakeWS.CONNECTING = 0; FakeWS.OPEN = 1; FakeWS.CLOSING = 2; FakeWS.CLOSED = 3;
+    window.WebSocket = FakeWS;
+    window.open = function () { return null; };
+    window.msStart = true;
+    window.dataLayer = [];
+    window.gtag = function () {};
 
-    function YG2Instance(method, arg) {
-        if (!ygGameInstance) return;
-        ygGameInstance.SendMessage('YG2Instance', method, arg);
+    var ctxs = [], AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+        var W = function () { var c = new (Function.prototype.bind.apply(AC, [null].concat([].slice.call(arguments))))(); ctxs.push(c); return c; };
+        W.prototype = AC.prototype;
+        window.AudioContext = W;
+        if (window.webkitAudioContext) window.webkitAudioContext = W;
     }
+    function wake() { ctxs.forEach(function (c) { try { if (c.state === 'suspended') c.resume(); } catch (e) {} }); }
+    ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, wake, true); });
+})();
 
-    function InitFakeYSDK() {
-        RequestingEnvironmentData();
-        InitPlayer();
-        LoadCloud();
-        GetStats();
-        InitPayments();
-    }
-
-    function RequestingEnvironmentData() {
-        YG2Instance('SetEnvirData', environmentData);
-        return Promise.resolve(environmentData);
-    }
-
-    function InitPlayer() {
-        var fakePlayer = {
-            "playerAuth": "resolved",
-            "playerName": "Okul_Gamer",
-            "playerId": "local_1",
-            "playerPhoto": "null",
-            "payingStatus": "unknown"
-        };
-        playerData = JSON.stringify(fakePlayer);
-        YG2Instance('SetAuth', playerData);
-        return Promise.resolve(playerData);
-    }
-
-    function LoadCloud() {
-        YG2Instance('SetLoadSaves', NO_DATA);
-        return Promise.resolve(NO_DATA);
-    }
-
-    function SaveCloud(jsonData) {}
-
-    function GetStats() {
-        YG2Instance('ReceiveStats', NO_DATA);
-        return Promise.resolve(NO_DATA);
-    }
-
-    function InterAdvShow() {
-        YG2Instance('OpenInterAdv');
-        setTimeout(() => YG2Instance('CloseInterAdv', 'true'), 300);
-    }
-
-    function RewardedAdvShow(id) {
-        YG2Instance('OpenRewardedAdv');
-        setTimeout(() => {
-            YG2Instance('CloseRewardedAdv');
-            YG2Instance('RewardAdv', id);
-        }, 300);
-    }
-
-    function SetStats() {}
-    function InitPayments() { YG2Instance('PaymentsEntries', NO_DATA); }
-    function BuyPayments(id) { YG2Instance('OnPurchaseFailed', id); }
-    function ConsumePurchase() {}
-    function ConsumePurchases() {}
-    function SetLeaderboard() {}
-    function GetLeaderboard(nameLB) {
-        YG2Instance('LeaderboardEntries', JSON.stringify({
-            technoName: nameLB, entries: "no data", ranks:[], photos:[], names:[], scores:[], uniqueIDs:[]
-        }));
-    }
-    function OpenAuthDialog() { InitPlayer(); }
-
-    function FocusGame() { window.focus(); canvas.focus(); }
-    window.addEventListener('pointerdown', FocusGame);
-    window.addEventListener('touchstart', FocusGame);
+var userData = "";
+function triggerSignIn() {}
+function saveGameData(d) { userData = d; }
+function loadGameData() { return userData; }
+function loadGameDataAsync() {}
+function signOut() { try { Main.SignOutComplete(); } catch (e) {} }
+function isUserLoggedIn() { return false; }
+function SendEvent() {}
+function updateStatus() {}
+function ShowAd1() {} function ShowAd2() {} function ShowAd3() {} function ShowAd4() {} function ShowAd5() {} function ShowAd6() {}
+function ShowAd7() {} function ShowAd8() {} function ShowAd9() {} function ShowAd10() {} function ShowAd11() {}
+function HideAd(divName, justClear) {
+    var d = document.getElementById(divName);
+    if (d) { if (!justClear) { d.style.display = "none"; d.style.visibility = "hidden"; } d.innerHTML = ""; }
+}
+function hidePreroll() { var p = document.getElementById("preroll"); if (p) { p.style.display = "none"; p.style.visibility = "hidden"; } }
+function SetCGInviteLink() {}
+function ShowAdBreak() { hidePreroll(); try { Main.DoneInterstitialAd(false); } catch (e) {} }
+function ShowVideo() { hidePreroll(); setTimeout(function () { try { Main.DoneVideoAd(true); } catch (e) {} }, 0); }
+function GamePlayStart() {}
+function GamePlayStop() {}
+function HappyTime() {}
 </script>
-
-<style>
+<script src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/BasketBros.js?th=648"></script>
+<script>
+window.addEventListener("touchmove", function (e) { e.preventDefault(); }, { capture: false, passive: false });
+if (window.devicePixelRatio > 2) document.getElementById("viewport").setAttribute('content', 'width=device-width, initial-scale=' + (2 / window.devicePixelRatio) + ', user-scalable=no');
+window.addEventListener('keydown', function (e) { if ((e.keyCode == 32 || e.keyCode == 38 || e.keyCode == 40) && e.target == document.body) e.preventDefault(); });
+</script>
+</head>
+<body>
+<div id="loading">
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/loading4.png"/><br/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/fbro.png"/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/bbbro.png"/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/sbro.png"/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/wbro.png"/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/kbro.png"/>
+<img src="https://cdn.jsdelivr.net/gh/brodeliver/bb@17/assets/bbro.png"/>
+</div>
+<div id="openfl-content" tabindex="-1" onblur="window.focus();">
+<script>lime.embed("BasketBros", "openfl-content", 0, 0, { parameters: {} });</script>
+</div>
+<div id="preroll"></div>
+<script>
+document.addEventListener('pointerdown', function () { var c = document.getElementById('openfl-content'); if (c && document.activeElement !== c) c.focus({ preventScroll: true }); });
+setInterval(function () { if (document.activeElement && document.activeElement.tagName == "IFRAME") { document.activeElement.blur(); document.getElementById('openfl-content').focus(); } }, 1000);
+</script>
+    <style>
+  /* Container: Top center, fixed, with overflow hidden */
   #ad-container {
     position: fixed;
-    bottom: 0;
+    top: 0; /* Üst kısma sabitlendi */
     left: 50%;
     transform: translateX(-50%);
-    width: min(728px, calc(100% - 20px));
+    width: min(728px, calc(100% - 20px)); 
     height: 90px;
     background: rgba(0, 0, 0, 0.90);
     display: none;
     z-index: 99999;
-    border-radius: 0;
+    border-radius: 0; 
     overflow: hidden;
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45); /* Gölge yönü aşağı verildi */
     box-sizing: border-box;
-    transition: transform 0.5s ease-in-out;
+    transition: transform 0.5s ease-in-out; 
   }
+
+  /* Slide-out animation */
   #ad-container.hidden {
-    transform: translate(-50%, 100%);
+    transform: translate(-50%, -100%); /* Yukarı doğru gizlenir */
   }
+
   #ad-iframe {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 745px;
-    height: 90px;
+    width: 745px; 
+    height: 90px; 
     border: 0;
     display: block;
     overflow: hidden;
@@ -276,14 +155,17 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  
   #ad-iframe::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0;
   }
+
+  /* Close button with arrow */
   #close-ad {
     position: absolute;
-    top: 6px;
+    bottom: 6px; /* Üst reklamda buton genellikle alt köşede daha erişilebilirdir, istersen top:6px yapabilirsin */
     right: 8px;
     background: #ff4d4d;
     color: #fff;
@@ -302,9 +184,11 @@
     opacity: 1;
   }
   #close-ad::before {
-    content: '↓';
+    content: '↑'; /* Üst reklam için yukarı ok */
     margin-right: 4px;
   }
+
+  /* Right mask for scrollbar */
   #ad-right-mask {
     position: absolute;
     top: 0;
@@ -315,6 +199,8 @@
     background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.9));
     z-index: 99999;
   }
+
+  /* Mobile adjustments */
   @media (max-width: 440px) {
     #ad-container {
       width: calc(100% - 12px);
@@ -331,7 +217,7 @@
 <div id="ad-container" aria-hidden="true" role="dialog" aria-label="Advertisement">
   <iframe
     id="ad-iframe"
-    src="https://script.google.com/macros/s/AKfycbw60Tp6nuqThxAuU8ZN1JIuPtjHoW2Uqq3fQy0CvrycN0O2AQwhRT5EDv73hh2FhXEF/exec"
+    src="https://script.google.com/macros/s/AKfycbxLG5DHBe-sIbduDvwQZYJ3oaX_ha7rsvroprCFkQsnpZK_PEdipNia5ghxI_sdXYpv/exec"
     width="768px"
     height="95px"
     scrolling="no"
@@ -344,9 +230,9 @@
 
 <script>
   (function () {
-    const showDelay = 2000;
-    const countdownStart = 12;
-    const reappearDelay = 150000;
+    const showDelay = 2000; 
+    const countdownStart = 12; 
+    const reappearDelay = 150000; 
     const adContainer = document.getElementById('ad-container');
     const closeBtn = document.getElementById('close-ad');
 
@@ -368,7 +254,7 @@
           clearInterval(t);
           closeBtn.disabled = false;
           closeBtn.classList.add('enabled');
-          closeBtn.textContent = 'Close ↓';
+          closeBtn.textContent = 'Close ↑';
         }
       }, 1000);
     }
@@ -383,7 +269,6 @@
     });
   })();
 </script>
-
 </body>
 </html>
 
