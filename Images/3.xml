@@ -9,7 +9,7 @@
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/z799gs/550o8@main/style.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/z799gs/550o8@c572d0918d334c7e0cd95db122265259d6a7b94a/style.css"/>
 <style>
     canvas:focus { outline: none; }
     html, body {
@@ -40,16 +40,14 @@
 </div>
 
 <script>
-    // --- 1. GLOBAL DEĞİŞKENLER (UNITY'NİN ARADIĞI KRİTİK ALANLAR) ---
     const NO_DATA = 'no data';
-    
-    // Unity C# tarafı bu değişkenleri doğrudan window'da arar
+
     var environmentData = NO_DATA;
     var cloudSaves = NO_DATA;
     var playerData = NO_DATA;
     var paymentsData = NO_DATA;
     var statsSaves = NO_DATA;
-    
+
     var player = null;
     var payments = null;
     var initGame = false;
@@ -57,9 +55,6 @@
     var ysdk = null;
     var isPausedGame = false;
 
-    // --- 2. LOG VE INIT FONKSİYONLARI (HATALARI ÇÖZEN KISIM) ---
-    
-    // Uncaught ReferenceError: LogStyledMessage is not defined hatası için:
     function LogStyledMessage(message, style) {
         if (style) {
             console.log('%c' + message, style);
@@ -68,12 +63,8 @@
         }
     }
 
-    // Uncaught ReferenceError: InitGame is not defined hatası için:
     function InitGame() {
-        LogStyledMessage('InitGame: Oyun başlatma sinyali alındı.');
         initGame = true;
-        
-        // SDK Hazır mesajını Unity'ye geri gönder
         setTimeout(function() {
             if (ygGameInstance) {
                 ygGameInstance.SendMessage('YG2Instance', 'InitSDKComplete');
@@ -81,7 +72,6 @@
         }, 500);
     }
 
-    // --- 3. DİLİ İNGİLİZCEYE ZORLA VE ORTAM VERİSİ ---
     var fakeEnvData = {
         "language": "en", 
         "domain": "default_domain",
@@ -98,11 +88,12 @@
     };
     environmentData = JSON.stringify(fakeEnvData);
 
-    // --- 4. UNITY KONFİGÜRASYONU ---
-    const buildUrl = "https://cdn.jsdelivr.net/gh/z799gs/550o8@main/Build";
+    const buildUrl = "https://cdn.jsdelivr.net/gh/z799gs/550o8@6e9dd3cff9f43dccbde8dcb246d76a0ade6a5237/Build";
+    const DATA_CDN = "https://cdn.jsdelivr.net/gh/z799gs/550o8@e1d08f37432f1e0915e9f4ca243c6b54ef848837/Build";
+    const WASM_CDN = "https://cdn.jsdelivr.net/gh/z799gs/550o8@c572d0918d334c7e0cd95db122265259d6a7b94a/Build";
     const loaderUrl = buildUrl + "/Dune.loader.js";
     const config = {
-        dataUrl: buildUrl + "/Dune.data.br",
+        dataUrl: DATA_CDN + "/Dune.data.br",
         frameworkUrl: buildUrl + "/Dune.framework.js",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
@@ -124,21 +115,20 @@
     loadingCover.style.background = "url('https://cdn.jsdelivr.net/gh/z799gs/550o8@main/Images/background.png') center / cover";
     loadingCover.style.display = "";
 
-    // --- 5. WASM BİRLEŞTİRME (6 PARÇA) ---
     function loadAndMergeFiles(files, callback) {
         var mergedBlob = [];
         var loadNextFile = function(index) {
             if (index < files.length) {
                 var file = files[index];
                 var xhr = new XMLHttpRequest();
-                xhr.open('GET', buildUrl + "/" + file, true);
+                xhr.open('GET', WASM_CDN + "/" + file, true);
                 xhr.responseType = 'arraybuffer';
                 xhr.onload = function() {
                     if (this.status === 200) {
                         mergedBlob.push(new Uint8Array(this.response));
                         loadNextFile(index + 1);
                     } else {
-                        LogStyledMessage("Parça yüklenemedi: " + file);
+                        LogStyledMessage("Part failed: " + file);
                         loadNextFile(index + 1);
                     }
                 };
@@ -156,13 +146,12 @@
         "Dune.wasm.br.part4", "Dune.wasm.br.part5", "Dune.wasm.br.part6"
     ];
 
-    // --- 6. UNITY'Yİ ZORLA BAŞLAT ---
     const script = document.createElement("script");
     script.src = loaderUrl;
     script.onload = () => {
         loadAndMergeFiles(wasmParts, function(blob) {
             config.codeUrl = URL.createObjectURL(blob);
-            
+
             createUnityInstance(canvas, config, (progress) => {
                 spinner.style.display = "none";
                 progressBarEmpty.style.display = "";
@@ -170,9 +159,6 @@
             }).then((unityInstance) => {
                 ygGameInstance = unityInstance;
                 loadingCover.style.display = "none";
-                LogStyledMessage("Unity hazır, Fake SDK moduna geçiliyor.");
-                
-                // Unity'ye SDK verilerini hemen tanıt
                 InitFakeYSDK();
             }).catch((message) => {
                 console.error(message);
@@ -181,8 +167,6 @@
     };
     document.body.appendChild(script);
 
-    // --- 7. FAKE SDK / YSDK BYPASS FONKSİYONLARI ---
-    
     function YG2Instance(method, arg) {
         if (!ygGameInstance) return;
         ygGameInstance.SendMessage('YG2Instance', method, arg);
@@ -219,16 +203,13 @@
         return Promise.resolve(NO_DATA);
     }
 
-    function SaveCloud(jsonData) {
-        LogStyledMessage("Save tetiklendi: " + jsonData.substring(0, 20) + "...");
-    }
+    function SaveCloud(jsonData) {}
 
     function GetStats() {
         YG2Instance('ReceiveStats', NO_DATA);
         return Promise.resolve(NO_DATA);
     }
 
-    // Reklam Bypass (Saniyeler içinde "izlendi" olarak döner)
     function InterAdvShow() {
         YG2Instance('OpenInterAdv');
         setTimeout(() => YG2Instance('CloseInterAdv', 'true'), 300);
@@ -242,7 +223,6 @@
         }, 300);
     }
 
-    // Diğer zorunlu boşluklar
     function SetStats() {}
     function InitPayments() { YG2Instance('PaymentsEntries', NO_DATA); }
     function BuyPayments(id) { YG2Instance('OnPurchaseFailed', id); }
@@ -259,41 +239,35 @@
     function FocusGame() { window.focus(); canvas.focus(); }
     window.addEventListener('pointerdown', FocusGame);
     window.addEventListener('touchstart', FocusGame);
-
 </script>
 
-<!-- Sticky Bottom Center Ad (728x90) with Smooth Slide-Out and Reappearance -->
 <style>
-  /* Container: Bottom center, fixed, with overflow hidden */
   #ad-container {
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: min(728px, calc(100% - 20px)); /* 728px, 10px margin on mobile */
+    width: min(728px, calc(100% - 20px));
     height: 90px;
     background: rgba(0, 0, 0, 0.90);
     display: none;
     z-index: 99999;
-    border-radius: 0; /* Sharp corners */
+    border-radius: 0;
     overflow: hidden;
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.45);
     box-sizing: border-box;
-    transition: transform 0.5s ease-in-out; /* Smooth slide-in/out animation */
+    transition: transform 0.5s ease-in-out;
   }
-
-  /* Slide-out animation */
   #ad-container.hidden {
-    transform: translate(-50%, 100%); /* Slide down out of view */
+    transform: translate(-50%, 100%);
   }
-
   #ad-iframe {
     position: absolute;
     top: 0;
     left: 50%;
     transform: translateX(-50%);
-    width: 745px; /* Updated width */
-    height: 90px; /* Updated height */
+    width: 745px;
+    height: 90px;
     border: 0;
     display: block;
     overflow: hidden;
@@ -302,14 +276,11 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
   #ad-iframe::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0;
   }
-
-  /* Close button with arrow */
   #close-ad {
     position: absolute;
     top: 6px;
@@ -331,11 +302,9 @@
     opacity: 1;
   }
   #close-ad::before {
-    content: '↓'; /* Down arrow for bottom ad */
+    content: '↓';
     margin-right: 4px;
   }
-
-  /* Right mask for scrollbar */
   #ad-right-mask {
     position: absolute;
     top: 0;
@@ -346,14 +315,12 @@
     background: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.9));
     z-index: 99999;
   }
-
-  /* Mobile adjustments */
   @media (max-width: 440px) {
     #ad-container {
       width: calc(100% - 12px);
       left: 50%;
       transform: translateX(-50%);
-      border-radius: 0; /* Sharp corners on mobile */
+      border-radius: 0;
     }
     #ad-iframe {
       width: 728px;
@@ -377,19 +344,17 @@
 
 <script>
   (function () {
-    const showDelay = 2000; // 2 seconds delay before first show
-    const countdownStart = 12; // 12 seconds countdown
-    const reappearDelay = 150000; // 25 seconds before reappearance
+    const showDelay = 2000;
+    const countdownStart = 12;
+    const reappearDelay = 150000;
     const adContainer = document.getElementById('ad-container');
     const closeBtn = document.getElementById('close-ad');
 
     function showAd() {
-      // Show ad with smooth slide-in
       adContainer.style.display = 'block';
       adContainer.classList.remove('hidden');
       adContainer.setAttribute('aria-hidden', 'false');
 
-      // Start countdown
       let timeLeft = countdownStart;
       closeBtn.textContent = `Close (${timeLeft})`;
       closeBtn.disabled = true;
@@ -408,15 +373,12 @@
       }, 1000);
     }
 
-    // Initial ad show
     setTimeout(showAd, showDelay);
 
-    // Close with animation and schedule reappearance
     closeBtn.addEventListener('click', () => {
       if (closeBtn.disabled) return;
       adContainer.classList.add('hidden');
       adContainer.setAttribute('aria-hidden', 'true');
-      // Schedule reappearance without removing or reloading iframe
       setTimeout(showAd, reappearDelay);
     });
   })();
